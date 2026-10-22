@@ -106,7 +106,18 @@ const nextConfig = {
 };
 ```
 
-**7. Optional structured data** on the pages that need it:
+**7. `Dockerfile`:** `next start` loads `next.config.ts`, which now imports `snaplive.config.ts`.
+If the runtime stage copies only built output, add the config and whatever it imports:
+
+```dockerfile
+COPY --from=build /app/next.config.ts ./
+COPY --from=build /app/snaplive.config.ts ./
+COPY --from=build /app/src ./src
+```
+
+Without this the container fails to start with `Cannot find module './snaplive.config'`.
+
+**8. Optional structured data** on the pages that need it:
 
 ```tsx
 import { eventJsonLd, faqJsonLd, JsonLd, requestOrigin } from '@snaplive/site-kit/next';

@@ -33,7 +33,8 @@ mkdir -p releases
 cp "$WORK/$TARBALL" releases/
 rm -rf src test scripts
 cp -r "$KIT_DIR/src" "$KIT_DIR/test" "$KIT_DIR/scripts" .
-cp "$KIT_DIR/README.md" "$KIT_DIR/package.json" "$KIT_DIR/tsconfig.json" .
+cp "$KIT_DIR/README.md" "$KIT_DIR/package.json" "$KIT_DIR/package-lock.json" "$KIT_DIR/tsconfig.json" "$KIT_DIR/.gitignore" .
+echo '!releases/*.tgz' >> .gitignore
 
 git add -A
 git commit --quiet -m "Release $VERSION" ${RELEASE_TRAILERS:+-m "$RELEASE_TRAILERS"}

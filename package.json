@@ -1,0 +1,37 @@
+{
+  "name": "@snaplive/site-kit",
+  "version": "0.1.0",
+  "description": "SEO and platform plumbing shared by every Snaplive client site: canonical URLs, host-aware metadata, robots.txt, sitemap.xml, noindex on previews, JSON-LD and redirects.",
+  "license": "UNLICENSED",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "default": "./dist/next.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/*.test.cjs"
+  },
+  "peerDependencies": {
+    "next": ">=15.2 <17",
+    "react": ">=19"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "next": "15.5.23",
+    "react": "19.2.8",
+    "typescript": "5.9.3",
+    "react-dom": "19.2.8"
+  }
+}

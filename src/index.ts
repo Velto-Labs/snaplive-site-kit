@@ -71,7 +71,8 @@ export function isProductionHost(site: SiteConfig, host: string | null | undefin
   const hostname = host.split(':')[0].toLowerCase();
   const prod = new URL(site.productionUrl).hostname.toLowerCase();
   const bare = prod.replace(/^www\./, '');
-  const allowed = new Set([bare, `www.${bare}`, ...(site.productionHosts ?? []).map((h) => h.toLowerCase())]);
+  const extra = (site.productionHosts ?? []).map((h) => h.split(':')[0].toLowerCase());
+  const allowed = new Set([bare, `www.${bare}`, ...extra]);
   return allowed.has(hostname);
 }
 
@@ -93,11 +94,15 @@ export function absoluteUrl(pathOrUrl: string, origin: string): string {
  * Next.js already sends trailing-slash URLs to the plain path.
  */
 export function nextRedirects(site: SiteConfig) {
+  const origin = productionOrigin(site);
   const seen = new Set<string>();
   const out: { source: string; destination: string; statusCode: 301 }[] = [];
   for (const { from, to } of site.redirects ?? []) {
     const base = from.replace(/\/+$/, '') || '/';
-    if (base === (to.replace(/\/+$/, '') || '/')) continue;
+    // Compare where `to` really lands: '/donate' and 'https://<production>/donate' are the same page.
+    const target = new URL(to, origin);
+    const samePage = isProductionHost(site, target.host) && (target.pathname.replace(/\/+$/, '') || '/') === base;
+    if (samePage) continue;
     for (const source of base === '/' ? ['/'] : [base, `${base}/`]) {
       if (seen.has(source)) continue;
       seen.add(source);
@@ -153,7 +158,10 @@ export type EventInput = {
   date?: string;
   /** 'HH:mm', 24-hour, local to timeZone. Without it the event is marked up as all-day. */
   startTime?: string;
+  /** 'HH:mm'. An end time earlier than the start time is taken as the next day (a late gala). */
   endTime?: string;
+  /** 'YYYY-MM-DD' when the event ends on a later day than `date`, e.g. a weekend festival. */
+  endDate?: string;
   /** IANA zone, e.g. 'America/Moncton'. */
   timeZone: string;
   venue?: { name: string; address?: PostalAddress };
@@ -174,13 +182,31 @@ const STATUS = {
 export function zoneOffset(date: string, time: string, timeZone: string): string {
   const [y, m, d] = date.split('-').map(Number);
   const [hh, mm] = time.split(':').map(Number);
-  // Guess the instant as if local were UTC, then correct by the zone's offset at that instant.
-  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const local = Date.UTC(y, m - 1, d, hh, mm);
+  // Two passes: the offset at "local read as UTC" can be on the wrong side of a
+  // daylight-saving change, so read the offset again at the instant it implies.
+  const first = offsetMinutes(new Date(local), timeZone);
+  const minutes = offsetMinutes(new Date(local - first * 60_000), timeZone);
+  const sign = minutes < 0 ? '-' : '+';
+  const abs = Math.abs(minutes);
+  return `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+}
+
+/** The zone's UTC offset in minutes at an instant (e.g. -240 for UTC-4). */
+function offsetMinutes(at: Date, timeZone: string): number {
   const name = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' })
-    .formatToParts(new Date(guess))
+    .formatToParts(at)
     .find((p) => p.type === 'timeZoneName')?.value;
-  const match = name?.match(/GMT([+-]\d{2}):?(\d{2})?/);
-  return match ? `${match[1]}:${match[2] ?? '00'}` : '+00:00';
+  const match = name?.match(/GMT([+-])(\d{2}):?(\d{2})?/);
+  if (!match) return 0;
+  const value = Number(match[2]) * 60 + Number(match[3] ?? 0);
+  return match[1] === '-' ? -value : value;
+}
+
+/** 'YYYY-MM-DD' one day later. */
+function nextDay(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
 }
 
 function eventDateTime(date: string, time: string | undefined, timeZone: string): string {
@@ -199,8 +225,19 @@ export function eventJsonLd(
 ): JsonObject | null {
   if (!event.date) return null;
   const startDate = eventDateTime(event.date, event.startTime, event.timeZone);
-  const endDate = event.endTime ? eventDateTime(event.date, event.endTime, event.timeZone) : undefined;
-  const endsAt = new Date(endDate ?? (event.startTime ? startDate : `${event.date}T23:59:59${zoneOffset(event.date, '23:59', event.timeZone)}`));
+  const endDay =
+    event.endDate ??
+    (event.endTime && event.startTime && event.endTime <= event.startTime ? nextDay(event.date) : event.date);
+  const endDate = event.endTime
+    ? eventDateTime(endDay, event.endTime, event.timeZone)
+    : event.endDate && event.endDate !== event.date
+      ? event.endDate
+      : undefined;
+  const endsAt = new Date(
+    event.endTime || event.startTime
+      ? (endDate && endDate.includes('T') ? endDate : startDate)
+      : `${endDay}T23:59:59${zoneOffset(endDay, '23:59', event.timeZone)}`,
+  );
   const over = endsAt.getTime() < now.getTime();
   const status = event.status ?? 'scheduled';
 

@@ -124,7 +124,8 @@ import { eventJsonLd, faqJsonLd, JsonLd, requestOrigin } from '@snaplive/site-ki
 
 <JsonLd data={eventJsonLd(siteConfig, {
   name: 'Antler Breakfast', path: '/antler-breakfast', date: '2026-11-27', startTime: '06:30', endTime: '09:30',
-  timeZone: 'America/Moncton', venue: { name: 'Delta Beauséjour', address: { addressLocality: 'Moncton' } },
+  timeZone: 'America/Moncton', // endTime before startTime means the next day; endDate for multi-day events
+  venue: { name: 'Delta Beauséjour', address: { addressLocality: 'Moncton' } },
   ticketsUrl: 'https://…',
 }, await requestOrigin(siteConfig))} />
 

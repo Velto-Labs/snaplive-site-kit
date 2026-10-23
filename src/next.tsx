@@ -26,8 +26,10 @@ const NOINDEX = 'noindex, nofollow';
 const HOST_RE = /^[a-z0-9.-]+(:\d+)?$/i;
 
 function hostFrom(h: Headers): string | null {
-  // Traefik passes the original Host through; x-forwarded-host covers other proxies.
-  const host = (h.get('x-forwarded-host') ?? h.get('host'))?.split(',')[0].trim();
+  // Prefer Host: the proxy routes on it, so a client can't point it elsewhere and still reach
+  // this site. X-Forwarded-Host is only a fallback, and its last entry is the one the nearest
+  // proxy added (earlier entries can come from the client).
+  const host = h.get('host')?.trim() || h.get('x-forwarded-host')?.split(',').pop()?.trim();
   return host && HOST_RE.test(host) ? host : null;
 }
 
@@ -127,7 +129,6 @@ export async function robots(site: SiteConfig): Promise<MetadataRoute.Robots> {
   return {
     rules: { userAgent: '*', allow: '/' },
     sitemap: canonicalUrl(site, '/sitemap.xml'),
-    host: productionOrigin(site),
   };
 }
 
